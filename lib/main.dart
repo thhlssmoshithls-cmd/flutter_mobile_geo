@@ -1,261 +1,249 @@
-import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'catatan_model.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Praktikum Geolocator (Dasar)',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
       debugShowCheckedModeBanner: false,
-      home: MyHomePage(),
+      home: const MapScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
+class MapScreen extends StatefulWidget {
+  const MapScreen({super.key});
+
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  Position? _currentPosition;
-  String? _errorMessage;
-  String? _currentAddress;
-  StreamSubscription<Position>? _positionStream;
-
-  // Tambahan Tugas 2:
-  String? _distanceToPNB; // Menyimpan jarak ke titik tetap
-  final double pnbLatitude = -8.3129;
-  final double pnbLongitude = 114.2365;
+class _MapScreenState extends State<MapScreen> {
+  final List<CatatanModel> _savedNotes = [];
+  final MapController _mapController = MapController();
 
   @override
-  void dispose() {
-    _positionStream?.cancel();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  Future<Position> _getPermissionAndLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+  // LOAD DATA
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? raw = prefs.getString("catatan_list");
 
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return Future.error('Layanan lokasi tidak aktif. Harap aktifkan GPS.');
+    if (raw != null) {
+      List decoded = jsonDecode(raw);
+      setState(() {
+        _savedNotes.clear();
+        _savedNotes.addAll(
+          decoded.map((e) => CatatanModel.fromMap(e)).toList(),
+        );
+      });
     }
+  }
+  
+  // SAVE DATA
+  Future<void> _saveData() async {
+    final prefs = await SharedPreferences.getInstance();
 
-    permission = await Geolocator.checkPermission();
+    List<Map<String, dynamic>> raw =
+        _savedNotes.map((e) => e.toMap()).toList();
+
+    prefs.setString("catatan_list", jsonEncode(raw));
+  }
+
+
+  // ICON TYPE
+  Icon _iconByType(String type) {
+    switch (type) {
+      case "rumah":
+        return const Icon(Icons.home, color: Colors.green, size: 40);
+
+      case "toko":
+        return const Icon(Icons.store, color: Colors.blue, size: 40);
+
+      case "kantor":
+        return const Icon(Icons.business, color: Colors.orange, size: 40);
+
+      default:
+        return const Icon(Icons.location_on, color: Colors.red, size: 40);
+    }
+  }
+
+  // FIND MY LOCATION
+  Future<void> _findMyLocation() async {
+    bool enabled = await Geolocator.isLocationServiceEnabled();
+    if (!enabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return Future.error('Izin lokasi ditolak.');
-      }
+      if (permission == LocationPermission.denied) return;
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      return Future.error(
-        'Izin lokasi ditolak permanen. Harap ubah di pengaturan aplikasi.',
-      );
-    }
+    Position pos = await Geolocator.getCurrentPosition();
 
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+    if (!mounted) return; // FIX async gap error
+
+    _mapController.move(
+      latlong.LatLng(pos.latitude, pos.longitude),
+      15,
     );
   }
 
-  Future<void> _getAddressFromLatLng(Position position) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+  // ADD MARKER (LONG PRESS)
+  void _handleLongPress(TapPosition _, latlong.LatLng point) async {
+    List<Placemark> placemarkList =
+        await placemarkFromCoordinates(point.latitude, point.longitude);
 
-      Placemark place = placemarks[0];
-      setState(() {
-        _currentAddress =
-            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.subAdministrativeArea}, ${place.administrativeArea}, ${place.country}";
-      });
-    } catch (e) {
-      setState(() {
-        _currentAddress = "Gagal mendapatkan alamat: $e";
-      });
-    }
-  }
+    String alamat = placemarkList.first.street ?? "Alamat tidak dikenal";
 
-  void _handleGetLocation() async {
-    try {
-      Position position = await _getPermissionAndLocation();
-      setState(() {
-        _currentPosition = position;
-        _errorMessage = null;
-      });
-      await _getAddressFromLatLng(position);
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-    }
-  }
+    TextEditingController noteCtrl = TextEditingController();
+    String selectedType = "rumah";
 
-  void _handleStartTracking() {
-    _positionStream?.cancel();
+    if (!mounted) return;
 
-    final LocationSettings locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Tambah Lokasi"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: noteCtrl,
+                decoration: const InputDecoration(
+                  hintText: "Catatan...",
+                ),
+              ),
+              const SizedBox(height: 10),
+              DropdownButton<String>(
+                value: selectedType,
+                items: const [
+                  DropdownMenuItem(value: "rumah", child: Text("Rumah")),
+                  DropdownMenuItem(value: "toko", child: Text("Toko")),
+                  DropdownMenuItem(value: "kantor", child: Text("Kantor")),
+                ],
+                onChanged: (v) {
+                  setState(() {
+                    selectedType = v!;
+                  });
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Batal")),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _savedNotes.add(
+                    CatatanModel(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      position: point,
+                      note: noteCtrl.text,
+                      address: alamat,
+                      type: selectedType,
+                    ),
+                  );
+                });
+                _saveData();
+                Navigator.pop(context);
+              },
+              child: const Text("Simpan"),
+            )
+          ],
+        );
+      },
     );
-
-    try {
-      _positionStream =
-          Geolocator.getPositionStream(
-            locationSettings: locationSettings,
-          ).listen((Position position) async {
-            setState(() {
-              _currentPosition = position;
-              _errorMessage = null;
-            });
-
-            // Tambahan Tugas 2: Hitung jarak ke titik tetap (PNB)
-            double distanceInMeters = Geolocator.distanceBetween(
-              position.latitude,
-              position.longitude,
-              pnbLatitude,
-              pnbLongitude,
-            );
-
-            setState(() {
-              _distanceToPNB = distanceInMeters.toStringAsFixed(2);
-            });
-
-            await _getAddressFromLatLng(position);
-          });
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-    }
   }
 
-  void _handleStopTracking() {
-    _positionStream?.cancel();
+  // DELETE MARKER
+  void _deleteMarker(int index) {
     setState(() {
-      _errorMessage = "Pelacakan dihentikan.";
+      _savedNotes.removeAt(index);
     });
+    _saveData();
   }
 
+  void _deleteMarkerDialog(int index) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Hapus Marker?"),
+        content: Text(_savedNotes[index].note),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _deleteMarker(index);
+              Navigator.pop(context);
+            },
+            child: const Text("Hapus"),
+          )
+        ],
+      ),
+    );
+  }
+
+  // =====================
+  // BUILD UI
+  // =====================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Praktikum Geolocator (Dasar)")),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.location_on, size: 50, color: Colors.blue),
-                SizedBox(height: 16),
-
-                ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: 150),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_errorMessage != null)
-                        Text(
-                          _errorMessage!,
-                          style: TextStyle(color: Colors.red, fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                      SizedBox(height: 16),
-
-                      if (_currentPosition != null) ...[
-                        Text(
-                          "Lat: ${_currentPosition!.latitude}\nLng: ${_currentPosition!.longitude}",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (_currentAddress != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              "Alamat: $_currentAddress",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                        // Tambahan Tugas 2: tampilkan jarak ke PNB
-                        if (_distanceToPNB != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              "Jarak ke PNB: $_distanceToPNB meter",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blueAccent,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                SizedBox(height: 32),
-
-                ElevatedButton.icon(
-                  icon: Icon(Icons.location_searching),
-                  label: Text('Dapatkan Lokasi Sekarang'),
-                  onPressed: _handleGetLocation,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: Size(double.infinity, 40),
-                  ),
-                ),
-                SizedBox(height: 16),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      icon: Icon(Icons.play_arrow),
-                      label: Text('Mulai Lacak'),
-                      onPressed: _handleStartTracking,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      icon: Icon(Icons.stop),
-                      label: Text('Henti Lacak'),
-                      onPressed: _handleStopTracking,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+      appBar: AppBar(title: const Text("Geo-Catatan")),
+      body: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: const latlong.LatLng(-6.2, 106.8),
+          initialZoom: 13,
+          onLongPress: _handleLongPress,
         ),
+        children: [
+          TileLayer(
+            urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          ),
+          MarkerLayer(
+            markers: List.generate(_savedNotes.length, (i) {
+              final item = _savedNotes[i];
+
+              return Marker(
+                point: item.position,
+                width: 50,
+                height: 50,
+                child: GestureDetector(
+                  onTap: () => _deleteMarkerDialog(i),
+                  child: _iconByType(item.type),
+                ),
+              );
+            }),
+          )
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _findMyLocation,
+        child: const Icon(Icons.my_location),
       ),
     );
   }
