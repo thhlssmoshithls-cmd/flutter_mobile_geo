@@ -2,29 +2,29 @@
 **Nim : 362458302020**
 
  **Deskripsi**
-Modul ini membahas integrasi layanan lokasi (GPS) dan peta digital dalam aplikasi Flutter. Mahasiswa akan membuat aplikasi sederhana bernama "Geo-Catatan" yang
+ Modul ini membahas integrasi layanan lokasi (GPS) dan peta digital dalam aplikasi Flutter. Mahasiswa akan membuat aplikasi sederhana bernama "Geo-Catatan" yang
  memungkinkan pengguna menandai lokasi pada peta dan menyimpan catatan terkait lokasi tersebut.
  
  **TugasMandiri**
-1.KustomisasiMarker:Ubahikonmarkeragarberbeda-bedatergantungjenis catatan(misal:Toko,Rumah,Kantor).
-2.HapusData:Tambahkanfituruntukmenghapusmarkeryangsudahdibuat.
-3. SimpanData: (Opsional)GunakanSharedPreferencesatauHiveagardata tidakhilangsaataplikasiditutup.
+ 1.KustomisasiMarker:Ubahikonmarkeragarberbeda-bedatergantungjenis catatan(misal:Toko,Rumah,Kantor).
+ 2.HapusData:Tambahkanfituruntukmenghapusmarkeryangsudahdibuat.
+ 3. SimpanData: (Opsional)GunakanSharedPreferencesatauHiveagardata tidakhilangsaataplikasiditutup.
   
 **Langkah - Langkah**
-  1.Membuat projek flutter dengan menambahkan depedensi 
-      dependencies:
-      flutter:
-        sdk: flutter
-      flutter_map: ^6.1.0
-      latlong2: ^0.9.0
-      shared_preferences: ^2.2.2
-      geolocator: ^14.0.2
-      geocoding: ^2.0.5
-      google_maps_flutter: ^2.14.0
-  2. Mengatur ijin akses lokasi
-    <user-permissions android:name="android.permissions.ACCESS_FINE_LOCATION" />
-    <user-permissions android:name="android.permissions.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.INTERNET" />
+1.Membuat projek flutter dengan menambahkan depedensi 
+dependencies:
+  flutter:
+    sdk: flutter
+    flutter_map: ^6.1.0
+    latlong2: ^0.9.0
+    shared_preferences: ^2.2.2
+    geolocator: ^14.0.2
+    geocoding: ^2.0.5
+    google_maps_flutter: ^2.14.0
+  2. Mengatur ijin akses lokasi 
+  <user-permissions android:name="android.permissions.ACCESS_FINE_LOCATION" />
+  <user-permissions android:name="android.permissions.ACCESS_COARSE_LOCATION" />
+  <uses-permission android:name="android.permission.INTERNET" />
   3.Membuat catatan model
     import 'package:latlong2/latlong.dart' as latlong;
     
