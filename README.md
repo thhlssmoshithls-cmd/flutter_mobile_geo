@@ -6,9 +6,9 @@ Modul ini membahas integrasi layanan lokasi (GPS) dan peta digital dalam aplikas
  memungkinkan pengguna menandai lokasi pada peta dan menyimpan catatan terkait lokasi tersebut.
  
  **TugasMandiri**
-  1.KustomisasiMarker:Ubahikonmarkeragarberbeda-bedatergantungjenis catatan(misal:Toko,Rumah,Kantor).
-  2.HapusData:Tambahkanfituruntukmenghapusmarkeryangsudahdibuat.
-  3. SimpanData: (Opsional)GunakanSharedPreferencesatauHiveagardata tidakhilangsaataplikasiditutup.
+1.KustomisasiMarker:Ubahikonmarkeragarberbeda-bedatergantungjenis catatan(misal:Toko,Rumah,Kantor).
+2.HapusData:Tambahkanfituruntukmenghapusmarkeryangsudahdibuat.
+3. SimpanData: (Opsional)GunakanSharedPreferencesatauHiveagardata tidakhilangsaataplikasiditutup.
   
 **Langkah - Langkah**
   1.Membuat projek flutter dengan menambahkan depedensi 
@@ -57,6 +57,7 @@ Modul ini membahas integrasi layanan lokasi (GPS) dan peta digital dalam aplikas
     }
 
 **Hasil**
+
 ![geomobile rumah](https://github.com/user-attachments/assets/a5cb208c-9127-42b1-9b41-192557efa97f)
 
 
